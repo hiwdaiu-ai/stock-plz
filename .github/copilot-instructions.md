@@ -47,7 +47,7 @@ This repository contains two main machine learning projects for financial analys
 - Comments may be in Chinese or English
 
 ### Data Handling
-- Stock data format: CSV files with columns: date, open, close, high, low, volumeP (OCHLV format)
+- Stock data format: CSV files with columns: date, open, close, high, low, volumeP (OCHLV format, where volumeP is the trading volume)
 - File naming patterns:
   - Year range data: `{stockID}_YYYY_YYYY_ochlv.csv` (e.g., `2330_2015_2019_ochlv.csv`)
   - Monthly data: `{stockID}_YYYYMM_MM_ochlv.csv` (e.g., `2330_202001_03_ochlv.csv`)
@@ -90,7 +90,7 @@ This repository contains two main machine learning projects for financial analys
 
 ## When Assisting with This Repository
 
-1. Respect the existing TensorFlow 1.x patterns unless explicitly migrating
+1. Respect the existing patterns: BERT sentiment analysis uses TensorFlow 1.x API, while stock prediction uses Keras with TensorFlow backend
 2. Maintain compatibility with Chinese language processing
 3. Preserve data pipeline structures for both projects
 4. Consider computational efficiency for LSTM training loops
