@@ -48,7 +48,7 @@ This repository contains two main machine learning projects for financial analys
 
 ### Data Handling
 - Stock data format: CSV files with OHLCV (Open, High, Low, Close, Volume) columns
-- File naming convention for stock data: `{stockID}_YYYY_YYYY_ochlv.csv`
+- File naming convention for stock data: `{stockID}_YYYY_YYYY_ochlv.csv` (lowercase in filenames)
 - Time series data uses 20 timesteps by default for LSTM training
 
 ### Model Training
@@ -80,7 +80,7 @@ This repository contains two main machine learning projects for financial analys
 
 ## Important Notes
 
-- **Pre-trained Models**: BERT pre-trained model is NOT included in the repository
+- **Pre-trained Models**: BERT pre-trained model is not included in the repository
 - **Data Sources**: Stock data from TWSE (Taiwan Stock Exchange) open data platform
 - **Legacy Code**: Uses TensorFlow 1.x; consider migration path to TF 2.x for new features
 - **Data Privacy**: Ensure no sensitive financial data is committed to the repository
