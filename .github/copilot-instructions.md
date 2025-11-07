@@ -47,8 +47,11 @@ This repository contains two main machine learning projects for financial analys
 - Comments may be in Chinese or English
 
 ### Data Handling
-- Stock data format: CSV files with OHLCV (Open, High, Low, Close, Volume) columns
-- File naming convention for stock data: `{stockID}_YYYY_YYYY_ochlv.csv` (lowercase in filenames)
+- Stock data format: CSV files with columns: date, open, close, high, low, volumeP (OCHLV format)
+- File naming patterns:
+  - Year range data: `{stockID}_YYYY_YYYY_ochlv.csv` (e.g., `2330_2015_2019_ochlv.csv`)
+  - Monthly data: `{stockID}_YYYYMM_MM_ochlv.csv` (e.g., `2330_202001_03_ochlv.csv`)
+  - Some files include 'NP' suffix: `{stockID}_YYYY_YYYY_ochlvNP.csv`
 - Time series data uses 20 timesteps by default for LSTM training
 
 ### Model Training
