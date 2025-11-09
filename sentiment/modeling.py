@@ -226,11 +226,11 @@ class BertModel(object):
         # We "pool" the model by simply taking the hidden state corresponding
         # to the first token. We assume that this has been pre-trained
         first_token_tensor = tf.squeeze(self.sequence_output[:, 0:1, :], axis=1)
-        pooler_dense = tf.keras.layers.Dense(
+        self.pooled_output = tf.compat.v1.layers.dense(
+            first_token_tensor,
             config.hidden_size,
             activation=tf.tanh,
             kernel_initializer=create_initializer(config.initializer_range))
-        self.pooled_output = pooler_dense(first_token_tensor)
 
   def get_pooled_output(self):
     return self.pooled_output
@@ -274,7 +274,7 @@ def gelu(input_tensor):
   Returns:
     `input_tensor` with the GELU activation applied.
   """
-  cdf = 0.5 * (1.0 + tf.erf(input_tensor / tf.sqrt(2.0)))
+  cdf = 0.5 * (1.0 + tf.math.erf(input_tensor / tf.math.sqrt(2.0)))
   return input_tensor * cdf
 
 
@@ -665,28 +665,28 @@ def attention_layer(from_tensor,
   to_tensor_2d = reshape_to_matrix(to_tensor)
 
   # `query_layer` = [B*F, N*H]
-  query_dense = tf.keras.layers.Dense(
+  query_layer = tf.compat.v1.layers.dense(
+      from_tensor_2d,
       num_attention_heads * size_per_head,
       activation=query_act,
       name="query",
       kernel_initializer=create_initializer(initializer_range))
-  query_layer = query_dense(from_tensor_2d)
 
   # `key_layer` = [B*T, N*H]
-  key_dense = tf.keras.layers.Dense(
+  key_layer = tf.compat.v1.layers.dense(
+      to_tensor_2d,
       num_attention_heads * size_per_head,
       activation=key_act,
       name="key",
       kernel_initializer=create_initializer(initializer_range))
-  key_layer = key_dense(to_tensor_2d)
 
   # `value_layer` = [B*T, N*H]
-  value_dense = tf.keras.layers.Dense(
+  value_layer = tf.compat.v1.layers.dense(
+      to_tensor_2d,
       num_attention_heads * size_per_head,
       activation=value_act,
       name="value",
       kernel_initializer=create_initializer(initializer_range))
-  value_layer = value_dense(to_tensor_2d)
 
   # `query_layer` = [B, N, F, H]
   query_layer = transpose_for_scores(query_layer, batch_size,
@@ -857,27 +857,27 @@ def transformer_model(input_tensor,
         # Run a linear projection of `hidden_size` then add a residual
         # with `layer_input`.
         with tf.compat.v1.variable_scope("output"):
-          attention_dense = tf.keras.layers.Dense(
+          attention_output = tf.compat.v1.layers.dense(
+              attention_output,
               hidden_size,
               kernel_initializer=create_initializer(initializer_range))
-          attention_output = attention_dense(attention_output)
           attention_output = dropout(attention_output, hidden_dropout_prob)
           attention_output = layer_norm(attention_output + layer_input)
 
       # The activation is only applied to the "intermediate" hidden layer.
       with tf.compat.v1.variable_scope("intermediate"):
-        intermediate_dense = tf.keras.layers.Dense(
+        intermediate_output = tf.compat.v1.layers.dense(
+            attention_output,
             intermediate_size,
             activation=intermediate_act_fn,
             kernel_initializer=create_initializer(initializer_range))
-        intermediate_output = intermediate_dense(attention_output)
 
       # Down-project back to `hidden_size` then add the residual.
       with tf.compat.v1.variable_scope("output"):
-        output_dense = tf.keras.layers.Dense(
+        layer_output = tf.compat.v1.layers.dense(
+            intermediate_output,
             hidden_size,
             kernel_initializer=create_initializer(initializer_range))
-        layer_output = output_dense(intermediate_output)
         layer_output = dropout(layer_output, hidden_dropout_prob)
         layer_output = layer_norm(layer_output + attention_output)
         prev_output = layer_output

@@ -559,7 +559,7 @@ def file_based_convert_examples_to_features(
     examples, label_list, max_seq_length, tokenizer, output_file):
   """Convert a set of `InputExample`s to a TFRecord file."""
 
-  writer = tf.python_io.TFRecordWriter(output_file)
+  writer = tf.io.TFRecordWriter(output_file)
 
   for (ex_index, example) in enumerate(examples):
     if ex_index % 10000 == 0:
@@ -668,19 +668,19 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
   # instead.
   output_layer = model.get_pooled_output()
 
-  hidden_size = output_layer.shape[-1].value
+  hidden_size = output_layer.shape[-1]
 
-  output_weights = tf.get_variable(
+  output_weights = tf.compat.v1.get_variable(
       "output_weights", [num_labels, hidden_size],
-      initializer=tf.truncated_normal_initializer(stddev=0.02))
+      initializer=tf.keras.initializers.TruncatedNormal(stddev=0.02))
 
-  output_bias = tf.get_variable(
-      "output_bias", [num_labels], initializer=tf.zeros_initializer())
+  output_bias = tf.compat.v1.get_variable(
+      "output_bias", [num_labels], initializer=tf.compat.v1.zeros_initializer())
 
-  with tf.variable_scope("loss"):
+  with tf.compat.v1.variable_scope("loss"):
     if is_training:
       # I.e., 0.1 dropout
-      output_layer = tf.nn.dropout(output_layer, keep_prob=0.9)
+      output_layer = tf.nn.dropout(output_layer, rate=0.1)
 
     logits = tf.matmul(output_layer, output_weights, transpose_b=True)
     logits = tf.nn.bias_add(logits, output_bias)
