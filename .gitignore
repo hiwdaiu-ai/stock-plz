@@ -1,0 +1,29 @@
+# BERT Model files (large)
+sentiment/chinese_L-12_H-768_A-12/
+
+# Training outputs
+sentiment/tmp/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
