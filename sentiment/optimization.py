@@ -19,17 +19,19 @@ from __future__ import division
 from __future__ import print_function
 
 import re
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+
+tf.disable_v2_behavior()
 
 
 def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu):
   """Creates an optimizer training op."""
-  global_step = tf.compat.v1.train.get_or_create_global_step()
+  global_step = tf.train.get_or_create_global_step()
 
   learning_rate = tf.constant(value=init_lr, shape=[], dtype=tf.float32)
 
   # Implements linear decay of the learning rate.
-  learning_rate = tf.compat.v1.train.polynomial_decay(
+  learning_rate = tf.train.polynomial_decay(
       learning_rate,
       global_step,
       num_train_steps,
@@ -68,7 +70,7 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu):
   # if use_tpu:
   #   optimizer = tf.contrib.tpu.CrossShardOptimizer(optimizer)
 
-  tvars = tf.compat.v1.trainable_variables()
+  tvars = tf.trainable_variables()
   grads = tf.gradients(loss, tvars)
 
   # This is how the model was pre-trained.
@@ -85,7 +87,7 @@ def create_optimizer(loss, init_lr, num_train_steps, num_warmup_steps, use_tpu):
   return train_op
 
 
-class AdamWeightDecayOptimizer(tf.compat.v1.train.Optimizer):
+class AdamWeightDecayOptimizer(tf.train.Optimizer):
   """A basic Adam optimizer that includes "correct" L2 weight decay."""
 
   def __init__(self,
@@ -115,18 +117,18 @@ class AdamWeightDecayOptimizer(tf.compat.v1.train.Optimizer):
 
       param_name = self._get_variable_name(param.name)
 
-      m = tf.compat.v1.get_variable(
+      m = tf.get_variable(
           name=param_name + "/adam_m",
           shape=param.shape.as_list(),
           dtype=tf.float32,
           trainable=False,
-          initializer=tf.compat.v1.zeros_initializer())
-      v = tf.compat.v1.get_variable(
+          initializer=tf.zeros_initializer())
+      v = tf.get_variable(
           name=param_name + "/adam_v",
           shape=param.shape.as_list(),
           dtype=tf.float32,
           trainable=False,
-          initializer=tf.compat.v1.zeros_initializer())
+          initializer=tf.zeros_initializer())
 
       # Standard Adam update.
       next_m = (

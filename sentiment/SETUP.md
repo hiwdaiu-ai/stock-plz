@@ -1,23 +1,46 @@
 # Setup Instructions for Sentiment Analysis
 
-This guide helps you set up the sentiment analysis system with TensorFlow 2.16.1 and GPU support.
+This guide helps you set up the sentiment analysis system with TensorFlow 2.x and GPU support.
+
+## Important Note about TensorFlow Version
+
+⚠️ **TensorFlow 2.16+ removed the Estimator API** which this BERT implementation relies on. We recommend one of the following approaches:
+
+### Option 1: Use TensorFlow 2.15 (Recommended for Quick Setup)
+TensorFlow 2.15 is the last version that includes the Estimator API. This is the easiest path to get the code running without major changes.
+
+### Option 2: Migrate to Keras (Recommended for Long-term)
+For long-term projects, users are encouraged to migrate from the Estimator API to `tf.keras`. This would involve:
+- Converting the BERT model to use Keras layers and models
+- Replacing the Estimator training loop with `model.fit()`
+- Updating checkpoints to Keras format
+
+**This repository currently uses the Estimator API for compatibility with the original BERT implementation.**
 
 ## Prerequisites
 
-- Python 3.8 or higher
+- Python 3.8 - 3.11 (for TensorFlow 2.15 compatibility)
 - NVIDIA GPU with CUDA support (for GPU acceleration)
-- CUDA 12.x and cuDNN 8.9+ (for TensorFlow 2.16.1)
+- CUDA 11.8+ and cuDNN 8.6+ (for TensorFlow 2.15)
 
 ## Installation Steps
 
 ### 1. Install Dependencies
 
+For TensorFlow 2.15 (recommended):
 ```bash
 cd sentiment
-pip install -r requirements.txt
+pip install tensorflow==2.15.1
+pip install pandas absl-py
 ```
 
-If you have a NVIDIA GPU, ensure you have the appropriate CUDA and cuDNN versions installed. TensorFlow 2.16.1 supports CUDA 12.x.
+For CPU-only installations:
+```bash
+pip install tensorflow==2.15.1
+pip install pandas absl-py
+```
+
+If you have a NVIDIA GPU, ensure you have the appropriate CUDA and cuDNN versions installed.
 
 ### 2. Download BERT Pretrained Model
 
@@ -91,7 +114,7 @@ python3 run_classifier.py \
 
 ## GPU Configuration
 
-TensorFlow 2.16.1 will automatically use your GPU if it's properly configured. To verify GPU availability:
+TensorFlow 2.15 will automatically use your GPU if it's properly configured. To verify GPU availability:
 
 ```python
 import tensorflow as tf
@@ -100,12 +123,37 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 ## Troubleshooting
 
+### TensorFlow Version Issues
+
+If you encounter `AttributeError: module 'tensorflow' has no attribute 'estimator'`:
+- You are likely using TensorFlow 2.16+, which removed the Estimator API
+- Downgrade to TensorFlow 2.15.1: `pip install tensorflow==2.15.1`
+- Or consider migrating the code to use `tf.keras` (requires significant code changes)
+
+### Python Version Issues
+
+TensorFlow 2.15 requires Python 3.8-3.11. If you're using Python 3.12+:
+- Use a Python 3.11 virtual environment
+- Or use Docker with Python 3.11
+
+Example with pyenv:
+```bash
+pyenv install 3.11.5
+pyenv virtualenv 3.11.5 bert-env
+pyenv activate bert-env
+pip install tensorflow==2.15.1 pandas absl-py
+```
+
 ### CUDA/cuDNN Issues
 
 If you encounter GPU-related errors:
 1. Verify CUDA installation: `nvcc --version`
 2. Ensure cuDNN is installed correctly
 3. Check TensorFlow GPU support: `python3 -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"`
+
+For TensorFlow 2.15, you need:
+- CUDA 11.8 or CUDA 12.2
+- cuDNN 8.6 or later
 
 ### Memory Issues
 
@@ -119,20 +167,39 @@ If the BERT model download fails:
 - Try using a VPN or mirror site
 - Download manually from Google's BERT repository: https://github.com/google-research/bert
 
-## Changes from TensorFlow 1.x
+## Changes from TensorFlow 1.x to 2.x
 
-This codebase has been updated from TensorFlow 1.x to 2.16.1 with the following changes:
+This codebase has been updated from TensorFlow 1.x to 2.x compatible mode with the following changes:
 
+- Updated to use `tensorflow.compat.v1` API for compatibility
 - Replaced `tf.flags` with `absl.flags`
-- Replaced `tf.gfile` with `tf.io.gfile`
-- Replaced `tf.layers` with `tf.keras.layers`
-- Replaced `tf.contrib` APIs with TF 2.x compatible alternatives
-- Removed TPU-specific code (TPUEstimator)
-- Updated to use standard `tf.estimator.Estimator` for GPU/CPU
-- Updated all deprecated TF 1.x APIs to TF 2.x equivalents
+- Replaced `tf.gfile` with `tf.io.gfile`  
+- Replaced `tf.layers.dense` with `tf.keras.layers.Dense`
+- Replaced `tf.contrib.layers.layer_norm` with `tf.keras.layers.LayerNormalization`
+- Removed TPU-specific code (TPUEstimator, CrossShardOptimizer)
+- Updated to use `tf.compat.v1.estimator` API for GPU/CPU training
+- Enabled `tf.disable_v2_behavior()` for TF1-style execution
+
+**Note:** The code uses TF1 compatibility mode (`tf.compat.v1`) with TensorFlow 2.15. This allows the original BERT Estimator-based code to run on TensorFlow 2.x without a complete rewrite.
+
+## Future Migration to Keras
+
+For users interested in migrating to pure TensorFlow 2.x with Keras:
+
+1. **Model Definition**: Convert `BertModel` class to use `tf.keras.Model`
+2. **Training Loop**: Replace Estimator with `model.compile()` and `model.fit()`
+3. **Checkpoints**: Convert TF1 checkpoints to Keras SavedModel format
+4. **Data Pipeline**: Update `tf.data` pipeline to work with Keras
+5. **Metrics**: Replace `tf.metrics` with `tf.keras.metrics`
+
+Reference implementations:
+- Hugging Face Transformers: https://github.com/huggingface/transformers
+- TensorFlow Official Models: https://github.com/tensorflow/models/tree/master/official
 
 ## Additional Resources
 
 - TensorFlow 2.x Migration Guide: https://www.tensorflow.org/guide/migrate
+- Estimator to Keras Migration: https://www.tensorflow.org/guide/migrate/migrating_estimator
 - BERT GitHub: https://github.com/google-research/bert
 - Chinese BERT Models: https://github.com/google-research/bert#pre-trained-models
+- TensorFlow 2.15 Release Notes: https://github.com/tensorflow/tensorflow/releases/tag/v2.15.0
