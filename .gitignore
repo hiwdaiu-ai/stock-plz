@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# TensorFlow
+*.ckpt*
+*.pb
+*.pbtxt
+checkpoint
+events.out.tfevents.*
+
+# BERT Models (too large for git)
+sentiment/chinese_L-12_H-768_A-12/
+
+# Training outputs
+sentiment/tmp/
+sentiment/*.tf_record
+sentiment/eval_results.txt
+sentiment/test_results.tsv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

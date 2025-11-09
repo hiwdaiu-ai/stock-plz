@@ -24,7 +24,9 @@ import json
 import math
 import re
 import six
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+
+tf.disable_v2_behavior()
 
 
 class BertConfig(object):
@@ -89,7 +91,7 @@ class BertConfig(object):
   @classmethod
   def from_json_file(cls, json_file):
     """Constructs a `BertConfig` from a json file of parameters."""
-    with tf.gfile.GFile(json_file, "r") as reader:
+    with tf.io.gfile.GFile(json_file, "r") as reader:
       text = reader.read()
     return cls.from_dict(json.loads(text))
 
@@ -226,11 +228,10 @@ class BertModel(object):
         # We "pool" the model by simply taking the hidden state corresponding
         # to the first token. We assume that this has been pre-trained
         first_token_tensor = tf.squeeze(self.sequence_output[:, 0:1, :], axis=1)
-        self.pooled_output = tf.layers.dense(
-            first_token_tensor,
+        self.pooled_output = tf.keras.layers.Dense(
             config.hidden_size,
             activation=tf.tanh,
-            kernel_initializer=create_initializer(config.initializer_range))
+            kernel_initializer=create_initializer(config.initializer_range))(first_token_tensor)
 
   def get_pooled_output(self):
     return self.pooled_output
@@ -362,8 +363,7 @@ def dropout(input_tensor, dropout_prob):
 
 def layer_norm(input_tensor, name=None):
   """Run layer normalization on the last dimension of the tensor."""
-  return tf.contrib.layers.layer_norm(
-      inputs=input_tensor, begin_norm_axis=-1, begin_params_axis=-1, scope=name)
+  return tf.keras.layers.LayerNormalization(axis=-1, name=name)(input_tensor)
 
 
 def layer_norm_and_dropout(input_tensor, dropout_prob, name=None):
@@ -665,28 +665,25 @@ def attention_layer(from_tensor,
   to_tensor_2d = reshape_to_matrix(to_tensor)
 
   # `query_layer` = [B*F, N*H]
-  query_layer = tf.layers.dense(
-      from_tensor_2d,
+  query_layer = tf.keras.layers.Dense(
       num_attention_heads * size_per_head,
       activation=query_act,
       name="query",
-      kernel_initializer=create_initializer(initializer_range))
+      kernel_initializer=create_initializer(initializer_range))(from_tensor_2d)
 
   # `key_layer` = [B*T, N*H]
-  key_layer = tf.layers.dense(
-      to_tensor_2d,
+  key_layer = tf.keras.layers.Dense(
       num_attention_heads * size_per_head,
       activation=key_act,
       name="key",
-      kernel_initializer=create_initializer(initializer_range))
+      kernel_initializer=create_initializer(initializer_range))(to_tensor_2d)
 
   # `value_layer` = [B*T, N*H]
-  value_layer = tf.layers.dense(
-      to_tensor_2d,
+  value_layer = tf.keras.layers.Dense(
       num_attention_heads * size_per_head,
       activation=value_act,
       name="value",
-      kernel_initializer=create_initializer(initializer_range))
+      kernel_initializer=create_initializer(initializer_range))(to_tensor_2d)
 
   # `query_layer` = [B, N, F, H]
   query_layer = transpose_for_scores(query_layer, batch_size,
@@ -857,27 +854,24 @@ def transformer_model(input_tensor,
         # Run a linear projection of `hidden_size` then add a residual
         # with `layer_input`.
         with tf.variable_scope("output"):
-          attention_output = tf.layers.dense(
-              attention_output,
+          attention_output = tf.keras.layers.Dense(
               hidden_size,
-              kernel_initializer=create_initializer(initializer_range))
+              kernel_initializer=create_initializer(initializer_range))(attention_output)
           attention_output = dropout(attention_output, hidden_dropout_prob)
           attention_output = layer_norm(attention_output + layer_input)
 
       # The activation is only applied to the "intermediate" hidden layer.
       with tf.variable_scope("intermediate"):
-        intermediate_output = tf.layers.dense(
-            attention_output,
+        intermediate_output = tf.keras.layers.Dense(
             intermediate_size,
             activation=intermediate_act_fn,
-            kernel_initializer=create_initializer(initializer_range))
+            kernel_initializer=create_initializer(initializer_range))(attention_output)
 
       # Down-project back to `hidden_size` then add the residual.
       with tf.variable_scope("output"):
-        layer_output = tf.layers.dense(
-            intermediate_output,
+        layer_output = tf.keras.layers.Dense(
             hidden_size,
-            kernel_initializer=create_initializer(initializer_range))
+            kernel_initializer=create_initializer(initializer_range))(intermediate_output)
         layer_output = dropout(layer_output, hidden_dropout_prob)
         layer_output = layer_norm(layer_output + attention_output)
         prev_output = layer_output

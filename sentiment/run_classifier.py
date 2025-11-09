@@ -24,10 +24,13 @@ import os
 import modeling
 import optimization
 import tokenization
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import pandas as pd
+from absl import flags
+# Use tf.compat.v1.estimator
 
-flags = tf.flags
+# Disable TF2 behavior to use TF1-style code
+tf.disable_v2_behavior()
 
 FLAGS = flags.FLAGS
 
@@ -100,25 +103,25 @@ flags.DEFINE_integer("iterations_per_loop", 1000,
 
 flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
 
-tf.flags.DEFINE_string(
+flags.DEFINE_string(
     "tpu_name", None,
     "The Cloud TPU to use for training. This should be either the name "
     "used when creating the Cloud TPU, or a grpc://ip.address.of.tpu:8470 "
     "url.")
 
-tf.flags.DEFINE_string(
+flags.DEFINE_string(
     "tpu_zone", None,
     "[Optional] GCE zone where the Cloud TPU is located in. If not "
     "specified, we will attempt to automatically detect the GCE project from "
     "metadata.")
 
-tf.flags.DEFINE_string(
+flags.DEFINE_string(
     "gcp_project", None,
     "[Optional] Project name for the Cloud TPU-enabled project. If not "
     "specified, we will attempt to automatically detect the GCE project from "
     "metadata.")
 
-tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
+flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
 
 flags.DEFINE_integer(
     "num_tpu_cores", 8,
@@ -197,7 +200,7 @@ class DataProcessor(object):
   @classmethod
   def _read_tsv(cls, input_file, quotechar=None):
     """Reads a tab separated value file."""
-    with tf.gfile.Open(input_file, "r") as f:
+    with tf.io.gfile.GFile(input_file, "r") as f:
       reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
       lines = []
       for line in reader:
@@ -652,7 +655,7 @@ def file_based_convert_examples_to_features(
     examples, label_list, max_seq_length, tokenizer, output_file):
   """Convert a set of `InputExample`s to a TFRecord file."""
 
-  writer = tf.python_io.TFRecordWriter(output_file)
+  writer = tf.io.TFRecordWriter(output_file)
 
   for (ex_index, example) in enumerate(examples):
     if ex_index % 10000 == 0:
@@ -680,26 +683,25 @@ def file_based_convert_examples_to_features(
 
 def file_based_input_fn_builder(input_file, seq_length, is_training,
                                 drop_remainder):
-  """Creates an `input_fn` closure to be passed to TPUEstimator."""
+  """Creates an `input_fn` closure to be passed to Estimator."""
 
   name_to_features = {
-      "input_ids": tf.FixedLenFeature([seq_length], tf.int64),
-      "input_mask": tf.FixedLenFeature([seq_length], tf.int64),
-      "segment_ids": tf.FixedLenFeature([seq_length], tf.int64),
-      "label_ids": tf.FixedLenFeature([], tf.int64),
-      "is_real_example": tf.FixedLenFeature([], tf.int64),
+      "input_ids": tf.io.FixedLenFeature([seq_length], tf.int64),
+      "input_mask": tf.io.FixedLenFeature([seq_length], tf.int64),
+      "segment_ids": tf.io.FixedLenFeature([seq_length], tf.int64),
+      "label_ids": tf.io.FixedLenFeature([], tf.int64),
+      "is_real_example": tf.io.FixedLenFeature([], tf.int64),
   }
 
   def _decode_record(record, name_to_features):
     """Decodes a record to a TensorFlow example."""
-    example = tf.parse_single_example(record, name_to_features)
+    example = tf.io.parse_single_example(record, name_to_features)
 
-    # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
-    # So cast all int64 to int32.
+    # tf.Example only supports tf.int64, but we cast to int32.
     for name in list(example.keys()):
       t = example[name]
       if t.dtype == tf.int64:
-        t = tf.to_int32(t)
+        t = tf.cast(t, tf.int32)
       example[name] = t
 
     return example
@@ -715,11 +717,10 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
       d = d.repeat()
       d = d.shuffle(buffer_size=100)
 
-    d = d.apply(
-        tf.contrib.data.map_and_batch(
-            lambda record: _decode_record(record, name_to_features),
-            batch_size=batch_size,
-            drop_remainder=drop_remainder))
+    d = d.map(lambda record: _decode_record(record, name_to_features),
+              num_parallel_calls=tf.data.AUTOTUNE)
+    d = d.batch(batch_size, drop_remainder=drop_remainder)
+    d = d.prefetch(tf.data.AUTOTUNE)
 
     return d
 
@@ -791,10 +792,10 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
 def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
                      num_train_steps, num_warmup_steps, use_tpu,
                      use_one_hot_embeddings):
-  """Returns `model_fn` closure for TPUEstimator."""
+  """Returns `model_fn` closure for Estimator."""
 
   def model_fn(features, labels, mode, params):  # pylint: disable=unused-argument
-    """The `model_fn` for TPUEstimator."""
+    """The `model_fn` for Estimator."""
 
     tf.logging.info("*** Features ***")
     for name in sorted(features.keys()):
@@ -818,19 +819,10 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     tvars = tf.trainable_variables()
     initialized_variable_names = {}
-    scaffold_fn = None
     if init_checkpoint:
       (assignment_map, initialized_variable_names
       ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
-      if use_tpu:
-
-        def tpu_scaffold():
-          tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
-          return tf.train.Scaffold()
-
-        scaffold_fn = tpu_scaffold
-      else:
-        tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
+      tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
 
     tf.logging.info("**** Trainable Variables ****")
     for var in tvars:
@@ -846,11 +838,10 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
       train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
 
-      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+      output_spec = tf.estimator.EstimatorSpec(
           mode=mode,
           loss=total_loss,
-          train_op=train_op,
-          scaffold_fn=scaffold_fn)
+          train_op=train_op)
     elif mode == tf.estimator.ModeKeys.EVAL:
 
       def metric_fn(per_example_loss, label_ids, logits, is_real_example):
@@ -863,18 +854,15 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
             "eval_loss": loss,
         }
 
-      eval_metrics = (metric_fn,
-                      [per_example_loss, label_ids, logits, is_real_example])
-      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+      eval_metric_ops = metric_fn(per_example_loss, label_ids, logits, is_real_example)
+      output_spec = tf.estimator.EstimatorSpec(
           mode=mode,
           loss=total_loss,
-          eval_metrics=eval_metrics,
-          scaffold_fn=scaffold_fn)
+          eval_metric_ops=eval_metric_ops)
     else:
-      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+      output_spec = tf.estimator.EstimatorSpec(
           mode=mode,
-          predictions={"probabilities": probabilities},
-          scaffold_fn=scaffold_fn)
+          predictions={"probabilities": probabilities})
     return output_spec
 
   return model_fn
@@ -979,7 +967,7 @@ def main(_):
         "was only trained up to sequence length %d" %
         (FLAGS.max_seq_length, bert_config.max_position_embeddings))
 
-  tf.gfile.MakeDirs(FLAGS.output_dir)
+  tf.io.gfile.makedirs(FLAGS.output_dir)
 
   task_name = FLAGS.task_name.lower()
 
@@ -993,21 +981,11 @@ def main(_):
   tokenizer = tokenization.FullTokenizer(
       vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
-  tpu_cluster_resolver = None
-  if FLAGS.use_tpu and FLAGS.tpu_name:
-    tpu_cluster_resolver = tf.contrib.cluster_resolver.TPUClusterResolver(
-        FLAGS.tpu_name, zone=FLAGS.tpu_zone, project=FLAGS.gcp_project)
-
-  is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
-  run_config = tf.contrib.tpu.RunConfig(
-      cluster=tpu_cluster_resolver,
-      master=FLAGS.master,
+  # Configure for GPU/CPU instead of TPU
+  run_config = tf.estimator.RunConfig(
       model_dir=FLAGS.output_dir,
       save_checkpoints_steps=FLAGS.save_checkpoints_steps,
-      tpu_config=tf.contrib.tpu.TPUConfig(
-          iterations_per_loop=FLAGS.iterations_per_loop,
-          num_shards=FLAGS.num_tpu_cores,
-          per_host_input_for_training=is_per_host))
+      keep_checkpoint_max=5)
 
   train_examples = None
   num_train_steps = None
@@ -1026,17 +1004,15 @@ def main(_):
       num_train_steps=num_train_steps,
       num_warmup_steps=num_warmup_steps,
       use_tpu=FLAGS.use_tpu,
-      use_one_hot_embeddings=FLAGS.use_tpu)
+      use_one_hot_embeddings=False)
 
-  # If TPU is not available, this will fall back to normal Estimator on CPU
-  # or GPU.
-  estimator = tf.contrib.tpu.TPUEstimator(
-      use_tpu=FLAGS.use_tpu,
+  # Use standard Estimator for GPU/CPU
+  estimator = tf.estimator.Estimator(
       model_fn=model_fn,
       config=run_config,
-      train_batch_size=FLAGS.train_batch_size,
-      eval_batch_size=FLAGS.eval_batch_size,
-      predict_batch_size=FLAGS.predict_batch_size)
+      params={
+          "batch_size": FLAGS.train_batch_size
+      })
 
   if FLAGS.do_train:
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
@@ -1077,13 +1053,8 @@ def main(_):
 
     # This tells the estimator to run through the entire set.
     eval_steps = None
-    # However, if running eval on the TPU, you will need to specify the
-    # number of steps.
-    if FLAGS.use_tpu:
-      assert len(eval_examples) % FLAGS.eval_batch_size == 0
-      eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
 
-    eval_drop_remainder = True if FLAGS.use_tpu else False
+    eval_drop_remainder = False
     eval_input_fn = file_based_input_fn_builder(
         input_file=eval_file,
         seq_length=FLAGS.max_seq_length,
@@ -1093,7 +1064,7 @@ def main(_):
     result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
 
     output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-    with tf.gfile.GFile(output_eval_file, "w") as writer:
+    with tf.io.gfile.GFile(output_eval_file, "w") as writer:
       tf.logging.info("***** Eval results *****")
       for key in sorted(result.keys()):
         tf.logging.info("  %s = %s", key, str(result[key]))
@@ -1102,13 +1073,6 @@ def main(_):
   if FLAGS.do_predict:
     predict_examples = processor.get_test_examples(FLAGS.data_dir)
     num_actual_predict_examples = len(predict_examples)
-    if FLAGS.use_tpu:
-      # TPU requires a fixed batch size for all batches, therefore the number
-      # of examples must be a multiple of the batch size, or else examples
-      # will get dropped. So we pad with fake examples which are ignored
-      # later on.
-      while len(predict_examples) % FLAGS.predict_batch_size != 0:
-        predict_examples.append(PaddingInputExample())
 
     predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
     file_based_convert_examples_to_features(predict_examples, label_list,
@@ -1121,7 +1085,7 @@ def main(_):
                     len(predict_examples) - num_actual_predict_examples)
     tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
 
-    predict_drop_remainder = True if FLAGS.use_tpu else False
+    predict_drop_remainder = False
     predict_input_fn = file_based_input_fn_builder(
         input_file=predict_file,
         seq_length=FLAGS.max_seq_length,
@@ -1131,7 +1095,7 @@ def main(_):
     result = estimator.predict(input_fn=predict_input_fn)
 
     output_predict_file = os.path.join(FLAGS.output_dir, "test_results.tsv")
-    with tf.gfile.GFile(output_predict_file, "w") as writer:
+    with tf.io.gfile.GFile(output_predict_file, "w") as writer:
       num_written_lines = 0
       tf.logging.info("***** Predict results *****")
       for (i, prediction) in enumerate(result):
@@ -1152,4 +1116,5 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("vocab_file")
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
-  tf.app.run()
+  from absl import app
+  app.run(main)
