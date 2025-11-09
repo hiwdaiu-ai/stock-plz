@@ -28,6 +28,9 @@ import tensorflow as tf
 import pandas as pd
 from absl import flags
 
+# Enable TF 2.x behavior while using compat.v1 APIs
+tf.compat.v1.disable_eager_execution()
+
 FLAGS = flags.FLAGS
 
 # Required parameters
@@ -1151,4 +1154,5 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("vocab_file")
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
-  tf.app.run()
+  from absl import app
+  app.run(main)

@@ -1,2 +1,3 @@
 tensorflow == 2.15.0   # CPU/GPU Version of TensorFlow 2.15
 pandas
+absl-py  # Required for flags and app
